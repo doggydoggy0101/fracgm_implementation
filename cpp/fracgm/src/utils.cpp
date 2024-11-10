@@ -1,149 +1,129 @@
+#include "fracgm/utils.h"
 #include <Eigen/Dense>
 #include <Eigen/SVD>
-#include <unsupported/Eigen/KroneckerProduct> 
+#include <unsupported/Eigen/KroneckerProduct>
 #include <vector>
-#include "fracgm/utils.h"
-
 
 namespace fracgm {
 
 // R2Sym
 R2Sym::R2Sym() {
-    mat = Eigen::MatrixXd::Zero(13, 13);
-    cache = 0.0;
+  mat = Eigen::MatrixXd::Zero(13, 13);
+  cache = 0.0;
 }
 
 R2Sym::R2Sym(Eigen::MatrixXd mat_) {
-    mat = mat_;
-    cache = 0.0;
+  mat = mat_;
+  cache = 0.0;
 }
 
 R2Sym::R2Sym(Eigen::MatrixXd mat_, double cache_) {
-    mat = mat_;
-    cache = cache_;
+  mat = mat_;
+  cache = cache_;
 }
 
-double R2Sym::call(Eigen::VectorXd x) {
-    return x.transpose() * mat * x; 
-}
+double R2Sym::call(Eigen::VectorXd x) { return x.transpose() * mat * x; }
 
-void R2Sym::update_cache(Eigen::VectorXd x) {
-    cache = call(x);
-}
-
+void R2Sym::update_cache(Eigen::VectorXd x) { cache = call(x); }
 
 // Fractional
 Fractional::Fractional(R2Sym r2_, double c2_) {
-    r2 = r2_;
-    c2 = c2_;
+  r2 = r2_;
+  c2 = c2_;
 }
 
-void Fractional::update_cache(Eigen::VectorXd x) {
-    r2.update_cache(x);
+void Fractional::update_cache(Eigen::VectorXd x) { r2.update_cache(x); }
+
+double Fractional::f() { return c2 * r2.cache; }
+
+double Fractional::h() { return r2.cache + c2; }
+
+Eigen::MatrixXd Fractional::f_mat() { return c2 * r2.mat; }
+
+Eigen::MatrixXd Fractional::h_mat() { return r2.mat; }
+
+std::pair<Eigen::MatrixXd, Eigen::Vector3d>
+get_zero_mean_point_cloud(Eigen::MatrixXd pcd) {
+
+  Eigen::Vector3d mean = pcd.colwise().mean();
+
+  for (int i = 0; i < pcd.rows(); i++) {
+    pcd.row(i) -= mean.transpose();
+  }
+
+  return std::make_pair(pcd, mean);
 }
-
-double Fractional::f() {
-    return c2 * r2.cache;
-}
-
-double Fractional::h() {
-    return r2.cache + c2;
-}
-
-Eigen::MatrixXd Fractional::f_mat() {
-    return c2 * r2.mat;
-}
-
-Eigen::MatrixXd Fractional::h_mat() {
-    return r2.mat;
-}
-
-
-std::pair<Eigen::MatrixXd, Eigen::Vector3d> get_zero_mean_point_cloud(Eigen::MatrixXd pcd) {
-
-    Eigen::Vector3d mean = pcd.colwise().mean();
-    
-    for (int i = 0; i < pcd.rows() ; i++) {
-        pcd.row(i) -=  mean.transpose();
-    }
-
-    return std::make_pair(pcd, mean);
-}
-
 
 Eigen::Matrix3d project(const Eigen::Matrix3d mat) {
 
-    Eigen::JacobiSVD<Eigen::Matrix3d> svd(mat, Eigen::ComputeFullU | Eigen::ComputeFullV);
-    Eigen::Matrix3d U = svd.matrixU();
-    Eigen::Matrix3d V = svd.matrixV();
+  Eigen::JacobiSVD<Eigen::Matrix3d> svd(mat, Eigen::ComputeFullU |
+                                                 Eigen::ComputeFullV);
+  Eigen::Matrix3d U = svd.matrixU();
+  Eigen::Matrix3d V = svd.matrixV();
 
-    Eigen::Matrix3d rot = U*V.transpose();
+  Eigen::Matrix3d rot = U * V.transpose();
 
-    if (rot.determinant() < 0) {
-        Eigen::Vector3d d(1.0, 1.0, -1.0);
-        rot = U*d.asDiagonal()*V.transpose();
-    }
+  if (rot.determinant() < 0) {
+    Eigen::Vector3d d(1.0, 1.0, -1.0);
+    rot = U * d.asDiagonal() * V.transpose();
+  }
 
-    return rot;
+  return rot;
 }
 
+Eigen::Matrix4d compute_initial_guess(PointCloud pcd1, PointCloud pcd2) {
 
-Eigen::Matrix4d compute_initial_guess(PointCloud pcd1, PointCloud pcd2) {   
+  std::pair<Eigen::Matrix<double, Eigen::Dynamic, 3>, Eigen::Vector3d>
+      pcd1_mean_pair = get_zero_mean_point_cloud(pcd1);
+  pcd1 << std::get<0>(pcd1_mean_pair);
+  Eigen::Vector3d mean1 = std::get<1>(pcd1_mean_pair);
 
-    std::pair<Eigen::Matrix<double, Eigen::Dynamic, 3>, Eigen::Vector3d> pcd1_mean_pair = get_zero_mean_point_cloud(pcd1);
-    pcd1 << std::get<0>(pcd1_mean_pair);
-    Eigen::Vector3d mean1 = std::get<1>(pcd1_mean_pair);
+  std::pair<Eigen::Matrix<double, Eigen::Dynamic, 3>, Eigen::Vector3d>
+      pcd2_mean_pair = get_zero_mean_point_cloud(pcd2);
+  pcd2 << std::get<0>(pcd2_mean_pair);
+  Eigen::Vector3d mean2 = std::get<1>(pcd2_mean_pair);
 
-    std::pair<Eigen::Matrix<double, Eigen::Dynamic, 3>, Eigen::Vector3d> pcd2_mean_pair = get_zero_mean_point_cloud(pcd2);
-    pcd2 << std::get<0>(pcd2_mean_pair);
-    Eigen::Vector3d mean2 = std::get<1>(pcd2_mean_pair);
+  Eigen::Matrix4d mat = Eigen::Matrix4d::Identity(4, 4);
+  mat.block<3, 3>(0, 0) = project(pcd2.transpose() * pcd1);
+  mat.block<3, 1>(0, 3) = mean2 - mean1;
 
-    Eigen::Matrix4d mat = Eigen::Matrix4d::Identity(4, 4);
-    mat.block<3, 3>(0, 0) = project(pcd2.transpose()*pcd1);
-    mat.block<3, 1>(0, 3) = mean2 - mean1;
-
-    return mat;
+  return mat;
 }
 
+std::vector<Fractional> compute_terms(PointCloud pcd1, PointCloud pcd2,
+                                      double noise_bound_2, double c2) {
 
-std::vector<Fractional> compute_terms(PointCloud pcd1, PointCloud pcd2, double noise_bound_2, double c2) {   
+  std::vector<Fractional> terms;
+  terms.reserve(pcd1.rows());
+  Eigen::Matrix3d id3 = Eigen::Matrix3d::Identity(3, 3);
+  Eigen::MatrixXd mat_n;
+  Eigen::MatrixXd mat_m;
 
-    std::vector<Fractional> terms;
-    terms.reserve(pcd1.rows());
-    Eigen::Matrix3d id3 = Eigen::Matrix3d::Identity(3, 3);
-    Eigen::MatrixXd mat_n;
-    Eigen::MatrixXd mat_m;
+  for (int i = 0; i < pcd1.rows(); i++) {
 
-    for (int i = 0; i < pcd1.rows() ; i++) {
+    mat_n = Eigen::Matrix<double, 3, 13>::Zero(3, 13);
+    mat_n.block<3, 9>(0, 0) = kroneckerProduct(pcd1.row(i), id3);
+    mat_n.block<3, 3>(0, 9) = id3;
+    mat_n.block<3, 1>(0, 12) = -pcd2.row(i);
 
-        mat_n = Eigen::Matrix<double, 3, 13>::Zero(3, 13);
-        mat_n.block<3, 9>(0, 0) = kroneckerProduct(pcd1.row(i), id3);
-        mat_n.block<3, 3>(0, 9) = id3;
-        mat_n.block<3, 1>(0, 12) = -pcd2.row(i);
-
-        mat_m = (mat_n.transpose()*mat_n)/(noise_bound_2);
-        terms.push_back(Fractional(R2Sym(mat_m), c2));
-    }
-    return terms;
+    mat_m = (mat_n.transpose() * mat_n) / (noise_bound_2);
+    terms.push_back(Fractional(R2Sym(mat_m), c2));
+  }
+  return terms;
 }
-
 
 Eigen::VectorXd se3_mat_to_vec(Eigen::Matrix4d mat) {
-    Eigen::Vector<double, 13> vec;
-    vec << mat(0, 0), mat(1, 0), mat(2, 0),
-           mat(0, 1), mat(1, 1), mat(2, 1),
-           mat(0, 2), mat(1, 2), mat(2, 2),
-           mat(0, 3), mat(1, 3), mat(2, 3), 1.0;
-    return vec;
+  Eigen::Vector<double, 13> vec;
+  vec << mat(0, 0), mat(1, 0), mat(2, 0), mat(0, 1), mat(1, 1), mat(2, 1),
+      mat(0, 2), mat(1, 2), mat(2, 2), mat(0, 3), mat(1, 3), mat(2, 3), 1.0;
+  return vec;
 }
 
 Eigen::Matrix4d se3_vec_to_mat(Eigen::VectorXd vec) {
-    Eigen::Matrix4d mat; 
-    mat << vec(0), vec(3), vec(6), vec(9),
-           vec(1), vec(4), vec(7), vec(10),
-           vec(2), vec(5), vec(8), vec(11),
-           0.0, 0.0, 0.0, 1.0;
-    return mat;
-} 
+  Eigen::Matrix4d mat;
+  mat << vec(0), vec(3), vec(6), vec(9), vec(1), vec(4), vec(7), vec(10),
+      vec(2), vec(5), vec(8), vec(11), 0.0, 0.0, 0.0, 1.0;
+  return mat;
+}
 
 }; // namespace fracgm
