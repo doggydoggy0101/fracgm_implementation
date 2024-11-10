@@ -25,6 +25,7 @@ def get_registration_test_data():
 
 
 src_reg, dst_reg, gt_reg = get_registration_test_data()
+print("Ground Truth:", end="\n\n")
 print(gt_reg, end="\n\n")
 
 
@@ -34,4 +35,5 @@ c = 1.0
 tol = 1e-6
 
 est_reg = FracGM(max_iteration, tol, c, noise_bound).solve(src_reg, dst_reg)
+print("FracGM:", end="\n\n")
 print(est_reg, end="\n\n")

@@ -8,15 +8,14 @@
 
 #include <fracgm/registration.h>
 
-
 using PointCloud = Eigen::Matrix<double, Eigen::Dynamic, 3, Eigen::RowMajor>;
 
-
-Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> read_matrix(std::string filename) {
+Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
+read_matrix(std::string filename) {
   std::ifstream file(filename);
   std::string line;
 
-  std::vector<std::vector<double> > data;
+  std::vector<std::vector<double>> data;
   std::vector<double> line_data;
 
   int n_cols = 0;
@@ -40,7 +39,8 @@ Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> read_matr
     data.push_back(line_data);
   }
 
-  Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> matrix(data.size(), n_cols);
+  Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> matrix(
+      data.size(), n_cols);
 
   for (int i = 0; i < (int)data.size(); i++) {
     for (int j = 0; j < n_cols; j++) {
@@ -50,7 +50,6 @@ Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> read_matr
 
   return matrix;
 }
-
 
 std::tuple<PointCloud, PointCloud, Eigen::Matrix<double, 4, 4, Eigen::RowMajor>>
 get_registration_test_data() {
@@ -63,7 +62,7 @@ get_registration_test_data() {
   dst.col(2) = dst.col(2).array() + 0.6;
 
   Eigen::Matrix<double, 4, 4, Eigen::RowMajor> gt = Eigen::Matrix4d::Identity();
-  gt.block<3, 3>(0, 0) = read_matrix("../../data/gt.txt"); 
+  gt.block<3, 3>(0, 0) = read_matrix("../../data/gt.txt");
   gt(0, 3) = 0.3;
   gt(1, 3) = 0.2;
   gt(2, 3) = 0.6;
@@ -79,10 +78,13 @@ int main() {
   double noise_bound = 0.1;
 
   auto [src_reg, dst_reg, gt_reg] = get_registration_test_data();
-  std::cout << '\n' << gt_reg << "\n\n";
+  std::cout << "Ground Truth:" << "\n";
+  std::cout << gt_reg << "\n\n";
 
-  auto est_reg = fracgm::registration(max_iteration, tol, c, noise_bound).solve(src_reg, dst_reg);
-  std::cout << '\n' << est_reg << "\n\n";
+  auto est_reg = fracgm::registration(max_iteration, tol, c, noise_bound)
+                     .solve(src_reg, dst_reg);
+  std::cout << "FracGM:" << "\n";
+  std::cout << est_reg << "\n\n";
 
   return 0;
 }
