@@ -13,7 +13,7 @@ sudo apt install -y libeigen3-dev
 ```
 
 ### :minidisc: Implementation
-- [:crab: Official Implementation]([examples/rust](https://github.com/StephLin/FracGM))
+- [:crab: Official Implementation](https://github.com/StephLin/FracGM)
 - [:snake: Python Implementation](python)
 - [:croissant: C++ Implementation](cpp)
 
