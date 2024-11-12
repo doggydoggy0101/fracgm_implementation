@@ -81,9 +81,10 @@ Eigen::Matrix4d registration::solve(const PointCloud &pcd1,
 
   Eigen::Matrix4d init_mat = compute_initial_guess(pcd1, pcd2);
   x = se3_mat_to_vec(init_mat);
-  alpha = solve_beta_mu(&terms);
 
   for (int i = 0; i < max_iteration_; i++) {
+    // alternating solve alpha
+    alpha = solve_beta_mu(&terms);
     // alternating solve x
     x = solve_x(&alpha, &terms);
     update_terms_cache(&terms, &x);
@@ -92,8 +93,6 @@ Eigen::Matrix4d registration::solve(const PointCloud &pcd1,
     if (psi_norm < tol_) {
       break;
     }
-    // alternating solve alpha
-    alpha = solve_beta_mu(&terms);
   }
 
   se3 = se3_vec_to_mat(x);

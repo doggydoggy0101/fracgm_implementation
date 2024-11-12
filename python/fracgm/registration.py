@@ -54,9 +54,11 @@ class FracGM:
 
         init_mat = compute_initial_guess(pcd1, pcd2)
         x = se3_mat_to_vec(init_mat)
-        beta, mu = self.solve_beta_mu(terms)
 
         for _ in range(self.max_iter):
+            # alternating solve beta & mu
+            beta, mu = self.solve_beta_mu(terms)
+
             # alternating solve x
             x = self.solve_x(beta, mu, terms)
             self.update_terms_cache(terms, x)
@@ -65,9 +67,6 @@ class FracGM:
             psi_norm = self.compute_psi_norm(beta, mu, terms)
             if psi_norm < self.tol:
                 break
-
-            # alternating solve beta & mu
-            beta, mu = self.solve_beta_mu(terms)
 
         se3 = se3_vec_to_mat(x)
         se3[:3, :3] = project(se3[:3, :3])
